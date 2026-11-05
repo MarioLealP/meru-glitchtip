@@ -4,8 +4,16 @@
 # first one the digest is a placeholder: nuwa-app renders everything but the workload (the build runner comes up, no
 # pod waits on an image that doesn't exist yet).
 name: glitchtip
-owner: "" # from the request
+owner: mario
 image:
   repository: zot.clockmost.com/meru/glitchtip
   digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
   tag: ""
+
+# Secrets from the request (D99): Janus wrote the values to OpenBao apps/meru/<app>/eso/env when the app was requested.
+externalSecrets:
+  env: {}
+secretEnv:
+  SECRET_KEY:
+    secret: env
+    key: secret-key
