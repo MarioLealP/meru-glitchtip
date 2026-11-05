@@ -11,9 +11,54 @@ image:
   tag: ""
 
 # Secrets from the request (D99): Janus wrote the values to OpenBao apps/meru/<app>/eso/env when the app was requested.
+# GlitchTip runs all-in-one: web, its background worker and its migrations in one container, with Postgres as cache and
+# queue (no Valkey). Tested 2026-11-05 under these rules: about 195 MB, migrations about 20s on an empty database.
+port: 8000
+heartbeat:
+  path: /_health/
+  host: glitchtip.clockmost.com # ALLOWED_HOSTS refuses the pod's IP, which is what the probes would otherwise send
+  startupFailureThreshold: 90 # 3 minutes: the first start migrates an empty database
+env:
+  SERVER_ROLE: all_in_one # the default (web) skips the migrations and the worker
+  GLITCHTIP_DOMAIN: https://glitchtip.clockmost.com
+  ALLOWED_HOSTS: glitchtip.clockmost.com
+  CSRF_TRUSTED_ORIGINS: https://glitchtip.clockmost.com # Caddy ends TLS, so Django sees http behind an https origin
+  VALKEY_URL: "" # empty = Postgres for cache, sessions and the task queue
+  MEDIA_ROOT: /code/uploads/ # default is the read-only working directory
+  # The login comes in pieces (D121), never inside a URL; this URL carries only the TLS requirement.
+  DATABASE_URL: postgres://glitchtip-db-rw.glitchtip.svc:5432/glitchtip?sslmode=require
+  DATABASE_HOST: glitchtip-db-rw.glitchtip.svc
+  DATABASE_NAME: glitchtip
+  # Sign-in is Authentik only (D120): no sign-up with a password, but an Authentik login makes its account. GlitchTip
+  # leaves sign-up open while it has no users at all, so the route stays off until Mario's admin exists.
+  ENABLE_USER_REGISTRATION: "false"
+  ENABLE_SOCIAL_APPS_USER_REGISTRATION: "true"
+  ENABLE_ORGANIZATION_CREATION: "false"
+  GRANIAN_WORKERS: "1"
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+persistence:
+  - name: uploads # source maps and attachments
+    mountPath: /code/uploads
+    size: 5Gi
+    storageClass: local
+networkPolicy:
+  enabled: true # Caddy (the host side) gets in; other apps' pods don't until they report errors here
+
 externalSecrets:
   env: {}
 secretEnv:
   SECRET_KEY:
     secret: env
     key: secret-key
+  # The database owner's login, made by CNPG (D121: GlitchTip migrates and makes partitions as it runs).
+  DATABASE_USER:
+    secret: glitchtip-db-app
+    key: username
+  DATABASE_PASSWORD:
+    secret: glitchtip-db-app
+    key: password

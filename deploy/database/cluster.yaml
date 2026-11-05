@@ -1,0 +1,32 @@
+# GlitchTip's Postgres (D121): one instance, owned by GlitchTip alone. GlitchTip logs in as the owner CNPG makes
+# (Secret glitchtip-db-app), because it migrates at every start and its worker keeps creating date partitions.
+# The image is the one Kyverno's meru-signed lets through by exact digest (CNPG's own); upgrade both together.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: glitchtip-db
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.15-202610260820-minimal-trixie@sha256:fc189febbe8c683dcf7399b93d25af3ad7a4d74c061875db300c41f0ad85f77a
+  inheritedMetadata:
+    labels:
+      app.kubernetes.io/name: glitchtip-db
+      app.kubernetes.io/part-of: meru
+      meru.clockmost.com/app: glitchtip
+      meru.clockmost.com/owner: mario
+  bootstrap:
+    initdb:
+      database: glitchtip
+      owner: glitchtip
+  storage:
+    storageClass: local
+    size: 5Gi
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+  postgresql:
+    parameters:
+      max_connections: "50"
+      shared_buffers: 64MB
