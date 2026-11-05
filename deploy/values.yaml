@@ -7,8 +7,8 @@ name: glitchtip
 owner: mario
 image:
   repository: zot.clockmost.com/meru/glitchtip
-  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-  tag: ""
+  digest: sha256:b88013c8e5327fc1d49bd432516746e2eedb9d3cf6dcf739ec9da24be65f74be
+  tag: "e120e6e3e1bc"
 
 # Secrets from the request (D99): Janus wrote the values to OpenBao apps/meru/<app>/eso/env when the app was requested.
 # GlitchTip runs all-in-one: web, its background worker and its migrations in one container, with Postgres as cache and
