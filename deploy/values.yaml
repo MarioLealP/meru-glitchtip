@@ -16,13 +16,22 @@ image:
 port: 8000
 heartbeat:
   path: /_health/
+  scheme: HTTPS
   host: glitchtip.clockmost.com # ALLOWED_HOSTS refuses the pod's IP, which is what the probes would otherwise send
   startupFailureThreshold: 90 # 3 minutes: the first start migrates an empty database
+# TLS in the pod, from Meru's CA (like Warpgate): Django only builds https:// addresses - the OIDC return address
+# Authentik checks - when its own connection is TLS; it has no setting to trust Caddy's X-Forwarded-Proto. granian reads
+# keys in PKCS#8 only. A renewal (every 16h) restarts the pod (Kyverno restart-on-secret-change): about 20-30s down.
+certificate:
+  enabled: true
+  keyEncoding: PKCS8
 env:
   SERVER_ROLE: all_in_one # the default (web) skips the migrations and the worker
+  GRANIAN_SSL_CERTIFICATE: /var/run/meru/tls/tls.crt
+  GRANIAN_SSL_KEYFILE: /var/run/meru/tls/tls.key
   GLITCHTIP_DOMAIN: https://glitchtip.clockmost.com
   ALLOWED_HOSTS: glitchtip.clockmost.com
-  CSRF_TRUSTED_ORIGINS: https://glitchtip.clockmost.com # Caddy ends TLS, so Django sees http behind an https origin
+  CSRF_TRUSTED_ORIGINS: https://glitchtip.clockmost.com
   VALKEY_URL: "" # empty = Postgres for cache, sessions and the task queue
   MEDIA_ROOT: /code/uploads/ # default is the read-only working directory
   # The login comes in pieces (D121), never inside a URL; this URL carries only the TLS requirement.
