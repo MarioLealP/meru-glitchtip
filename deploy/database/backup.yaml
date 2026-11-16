@@ -70,7 +70,7 @@ spec:
   retentionPolicy: 14d
   configuration:
     destinationPath: s3://pg-glitchtip/
-    endpointURL: http://garage.garage.svc:3900 # in-cluster only; Garage's policy lets this namespace in
+    endpointURL: http://garage.garage.svc # the Service listens on 80 (-> the pod's 3900), as every Meru Service; in-cluster only
     s3AddressingStyle: path # Garage has no virtual-host names set up
     s3Credentials:
       accessKeyId: { name: backup-s3, key: ACCESS_KEY_ID }
