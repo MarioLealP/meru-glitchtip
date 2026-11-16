@@ -56,7 +56,14 @@ persistence:
     size: 5Gi
     storageClass: local
 networkPolicy:
-  enabled: true # Caddy (the host side) gets in; other apps' pods don't until they report errors here
+  enabled: true # Caddy (the host side) gets in; apps report through Caddy too
+  hostAddresses: [10.42.0.1/32] # the node: the kubelet's probes and Caddy on the host (no Docker range any more)
+  # Out: public addresses (uptime checks and alert webhooks it may be given), its own Postgres, and Caddy for
+  # Authentik's sign-in.
+  egress: internet
+  toNamespaces: [glitchtip]
+  toAddresses:
+    - { cidr: 192.168.10.110/32, ports: [443] }
 
 externalSecrets:
   env: {}
