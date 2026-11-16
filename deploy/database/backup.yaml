@@ -1,0 +1,102 @@
+# glitchtip-db: continuous WAL archive + weekly base backups (Meru audit P4)
+# into Meru/garage's bucket pg-glitchtip,
+# through CNPG's Barman Cloud plugin (Meru/meru platform/barman-cloud.yaml): a restore can go to any minute of the last
+# 14 days. The nightly pg_dumpall from the host backup stays as the second, readable copy.
+# The key: Garage's provisioner keeps it in Secret s3-glitchtip (namespace garage).
+# ESO copies that one Secret here with this namespace's service account backup-key, which may read exactly it
+# (Meru/meru rbac/garage-backup-keys.yaml). No pod runs as that account; nobody makes or copies the key by hand.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-key
+  labels:
+    app.kubernetes.io/name: glitchtip
+    app.kubernetes.io/part-of: meru
+    meru.clockmost.com/owner: mario
+automountServiceAccountToken: false
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: garage-backup-key
+  labels:
+    app.kubernetes.io/name: glitchtip
+    app.kubernetes.io/part-of: meru
+    meru.clockmost.com/owner: mario
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: garage
+      server:
+        url: https://kubernetes.default.svc
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt # the cluster's CA, in every namespace
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: backup-key
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: backup-s3
+  labels:
+    app.kubernetes.io/name: glitchtip
+    app.kubernetes.io/part-of: meru
+    meru.clockmost.com/owner: mario
+spec:
+  refreshInterval: 5m
+  secretStoreRef:
+    name: garage-backup-key
+    kind: SecretStore
+  target:
+    name: backup-s3
+    creationPolicy: Owner
+  dataFrom:
+    - extract:
+        key: s3-glitchtip # ACCESS_KEY_ID, ACCESS_SECRET_KEY, REGION
+---
+# Where the WAL and base backups go. The Cluster names it in spec.plugins (barmanObjectName: backups).
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: backups
+  labels:
+    app.kubernetes.io/name: glitchtip
+    app.kubernetes.io/part-of: meru
+    meru.clockmost.com/owner: mario
+spec:
+  retentionPolicy: 14d
+  configuration:
+    destinationPath: s3://pg-glitchtip/
+    endpointURL: http://garage.garage.svc:3900 # in-cluster only; Garage's policy lets this namespace in
+    s3AddressingStyle: path # Garage has no virtual-host names set up
+    s3Credentials:
+      accessKeyId: { name: backup-s3, key: ACCESS_KEY_ID }
+      secretAccessKey: { name: backup-s3, key: ACCESS_SECRET_KEY }
+      region: { name: backup-s3, key: REGION }
+    wal:
+      compression: zstd
+    data:
+      compression: zstd
+---
+# A base backup every Sunday 13:00 UTC (daytime: Bahamut is often off at night, and a missed run waits a week), plus
+# one as soon as this lands, so point-in-time restore works from day one.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: glitchtip-db-weekly
+  labels:
+    app.kubernetes.io/name: glitchtip
+    app.kubernetes.io/part-of: meru
+    meru.clockmost.com/owner: mario
+spec:
+  schedule: "0 0 13 * * 0" # seconds minutes hours day month weekday
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: glitchtip-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

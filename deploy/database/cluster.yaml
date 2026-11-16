@@ -9,6 +9,13 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   instances: 1
+  # WAL archive + base backups into Meru/garage (backup.yaml beside this file). Restore: workspace runbook
+  # meru-external-audit-2026-11.md, P4.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: backups
   imageName: ghcr.io/cloudnative-pg/postgresql:16.15-202610260820-minimal-trixie@sha256:fc189febbe8c683dcf7399b93d25af3ad7a4d74c061875db300c41f0ad85f77a
   inheritedMetadata:
     labels:
